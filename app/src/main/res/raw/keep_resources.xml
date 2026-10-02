@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 防止资源压缩移除运行时动态引用的资源（shrinkResources 看不到 getIdentifier 调用） -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_doumcp" />
