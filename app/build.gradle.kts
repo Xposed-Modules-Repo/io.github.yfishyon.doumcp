@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.agp.app)
 }
@@ -10,16 +12,33 @@ val gitHash =
         .get()
         .trim()
 
+// 签名信息读取自根目录 release-signing.properties（不入库），缺失时 release 不签名
+val releaseSigning =
+    rootProject.file("release-signing.properties").takeIf { it.exists() }?.let { props ->
+        Properties().apply { props.inputStream().use { load(it) } }
+    }
+
 android {
     namespace = "io.github.yfishyon.doumcp"
     buildToolsVersion = "37.0.0"
     compileSdk = 37
 
+    if (releaseSigning != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = rootProject.file(releaseSigning.getProperty("storeFile"))
+                storePassword = releaseSigning.getProperty("storePassword")
+                keyAlias = releaseSigning.getProperty("keyAlias")
+                keyPassword = releaseSigning.getProperty("keyPassword")
+            }
+        }
+    }
+
     defaultConfig {
         minSdk = 26
         targetSdk = 37
         versionCode = 1
-        versionName = gitHash
+        versionName = "1.0.0"
     }
 
     buildFeatures {
@@ -31,7 +50,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles("proguard-rules.pro")
-            signingConfig = signingConfigs["debug"]
+            signingConfig = releaseSigning?.let { signingConfigs["release"] }
         }
     }
 
