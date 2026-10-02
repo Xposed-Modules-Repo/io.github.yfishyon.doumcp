@@ -132,7 +132,6 @@ object SettingsInjector {
             val drawable = moduleRes.getDrawable(R.drawable.ic_doumcp, null)
             icon.setImageBitmap(drawableToBitmap(drawable))
             icon.visibility = View.VISIBLE
-            ModLog.i("图标：设置成功")
         }.onFailure { ModLog.w("图标：设置失败 $it") }
     }
 
