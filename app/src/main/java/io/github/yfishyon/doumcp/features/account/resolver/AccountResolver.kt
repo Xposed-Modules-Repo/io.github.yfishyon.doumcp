@@ -8,8 +8,7 @@ import java.lang.reflect.Method
 /**
  * 账号域的定位器。
  *
- * - 账号切换：账号用户服务实现上"参数为 (用户资料对象, 目标用户ID)、返回 void"，
- *   方法内带切换流程专属标记字符串
+ * - 账号切换：账号用户服务实现上"参数为 (用户资料对象, 目标用户ID)、返回 void"的唯一方法
  * - 用户资料请求：持有 profile 接口路径（全等锚点）的类里，
  *   静态方法 (String url, boolean, String) → 用户模型；端点同时接受 user_id 与 sec_user_id
  */
@@ -27,7 +26,6 @@ object AccountResolver {
                     matcher {
                         paramTypes(PROFILE_USER, "java.lang.String")
                         returnType = "void"
-                        usingStrings(listOf("is_from_switch_account"), StringMatchType.Equals)
                     }
                 }.singleOrNull()
                 ?.getMethodInstance(HostRuntime.requireClassLoader())

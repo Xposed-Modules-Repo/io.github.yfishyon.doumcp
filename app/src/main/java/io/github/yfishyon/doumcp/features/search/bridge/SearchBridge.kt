@@ -34,16 +34,12 @@ object SearchBridge {
     ): String {
         if (keyword.isBlank()) return errorJson("关键词为空")
 
-        val provider =
+        val api =
             SearchResolver.resolveApiProvider()
                 ?: return errorJson("搜索 API 未定位")
         val genericCall =
             SearchResolver.resolveGenericCall()
                 ?: return errorJson("搜索请求方法未定位")
-
-        val api =
-            provider.invoke(null)
-                ?: return errorJson("搜索 API 实例为空")
 
         // 请求参数：hook 抖音自身搜索抓到的业务参数模板（设备/埋点类由网络层附加）
         val params = LinkedHashMap<String, String>()

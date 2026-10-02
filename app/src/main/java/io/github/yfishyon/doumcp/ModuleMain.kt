@@ -134,6 +134,8 @@ class ModuleMain : XposedModule() {
         post {
             runCatching { DexKitSupport.init(apkPath, moduleApkPath, versionCode) }
                 .onFailure { ModLog.e("DexKit 初始化失败", it) }
+            runCatching { FeatureWarmup.warmUpIfNeeded() }
+                .onFailure { ModLog.e("适配预热失败", it) }
         }
 
         McpServerHost.start(ModulePrefs.getPort(appContext))

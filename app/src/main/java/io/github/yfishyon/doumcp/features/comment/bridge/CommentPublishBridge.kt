@@ -37,13 +37,12 @@ object CommentPublishBridge {
         }
         if (awemeId.isBlank() || text.isBlank()) return errorJson("awemeId 与 text 不能为空")
 
-        val provider =
+        val api =
             SearchResolver.resolveApiProvider()
                 ?: return errorJson("请求 API 未定位")
         val genericCall =
             SearchResolver.resolveGenericCall()
                 ?: return errorJson("请求方法未定位")
-        val api = provider.invoke(null) ?: return errorJson("API 实例为空")
 
         // 字段名来自 Retrofit 注解逆向（publish/ 端点 66 字段，取需要的）
         val form = LinkedHashMap<String, String>()
