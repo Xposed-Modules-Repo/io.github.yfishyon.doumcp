@@ -1,7 +1,6 @@
 package io.github.yfishyon.doumcp.core
 
 import org.luckypray.dexkit.DexKitBridge
-import org.luckypray.dexkit.query.enums.StringMatchType
 import java.lang.reflect.Method
 
 /**
@@ -71,9 +70,17 @@ object DexKitSupport {
         val cacheKey = ResolvedCache.versionedKey(hostVersionCode, feature)
         if (context != null) {
             ResolvedCache.load(context, cacheKey)?.let { cached ->
-                val (className, methodName) = cached.split("#", limit = 2)
-                restoreMethod(HostRuntime.requireClassLoader(), className, methodName)?.let {
+                val parts = cached.split("#", limit = 3)
+                val className = parts[0]
+                val methodName = parts.getOrNull(1) ?: ""
+                val paramTypes = if (parts.size == 3) parts[2] else null
+                restoreMethod(HostRuntime.requireClassLoader(), className, methodName, paramTypes)?.let {
                     methodCache[feature] = it
+                    if (paramTypes == null) {
+                        // 老格式缓存（无参数类型）就地升级，避免同名重载还原错
+                        val upgraded = it.parameterTypes.joinToString(",") { type -> type.name }
+                        ResolvedCache.save(context, cacheKey, "${it.declaringClass.name}#${it.name}#$upgraded")
+                    }
                     return it
                 }
             }
@@ -83,9 +90,26 @@ object DexKitSupport {
         val method = find(dexKit) ?: return null
 
         methodCache[feature] = method
-        context?.let { ResolvedCache.save(it, cacheKey, "${method.declaringClass.name}#${method.name}") }
+        val paramTypes = method.parameterTypes.joinToString(",") { it.name }
+        context?.let {
+            ResolvedCache.save(it, cacheKey, "${method.declaringClass.name}#${method.name}#$paramTypes")
+        }
         return method
     }
+
+    /** 宿主 APK 路径（未初始化时为 null） */
+    val apkPath: String?
+        get() = hostApkPath
+
+    /** 宿主版本号（未初始化时为 -1） */
+    val hostVersion: Long
+        get() = hostVersionCode
+
+    /** 已建好的桥（不触发索引构建）；供只读状态查询用 */
+    fun bridgeIfReady(): DexKitBridge? = bridge
+
+    /** 取桥并按需懒建（复用同一实例与线程配置）；供 devtool 直接跑查询 */
+    fun bridgeOrNull(): DexKitBridge? = dexKit()
 
     private fun dexKit(): DexKitBridge? {
         bridge?.let { return it }
@@ -112,31 +136,28 @@ object DexKitSupport {
         runCatching { System.load("$moduleApkPath!/lib/arm64-v8a/libdexkit.so") } // todo: 理论上上面的走mmap如果能加载，那么下面的也肯定可以。但我没做手动解压目录手动load兜底
     }
 
-    private fun resolveClassName(
-        feature: String,
-        find: (DexKitBridge) -> String?,
-    ): String? {
-        val context = HostRuntime.context
-        val cacheKey = ResolvedCache.versionedKey(hostVersionCode, feature)
-        if (context != null) {
-            ResolvedCache.load(context, cacheKey)?.let { return it }
-        }
-        val dexKit = dexKit() ?: return null
-        val name = find(dexKit) ?: return null
-        context?.let { ResolvedCache.save(it, cacheKey, name) }
-        return name
-    }
-
-    /** 按缓存的「类名#方法名」在宿主里还原 Method（类或方法消失时返回 null） */
+    /**
+     * 按缓存的「类名#方法名#参数类型」在宿主里还原 Method（类或方法消失时返回 null）。
+     *
+     * 参数类型为 null 表示老格式缓存：仅当同名方法唯一时才认，否则当作未命中重新定位并写新格式。
+     */
     private fun restoreMethod(
         classLoader: ClassLoader,
         className: String,
         methodName: String,
+        paramTypes: String?,
     ): Method? =
         runCatching {
-            Class
-                .forName(className, false, classLoader)
-                .declaredMethods
-                .firstOrNull { it.name == methodName }
+            val candidates =
+                Class
+                    .forName(className, false, classLoader)
+                    .declaredMethods
+                    .filter { it.name == methodName }
+            if (paramTypes == null) {
+                // 老格式：仅当同名方法唯一才认，避免同名重载取错（不确定就当 miss 重新定位）
+                candidates.singleOrNull()
+            } else {
+                candidates.firstOrNull { it.parameterTypes.joinToString(",") { type -> type.name } == paramTypes }
+            }
         }.getOrNull()
 }

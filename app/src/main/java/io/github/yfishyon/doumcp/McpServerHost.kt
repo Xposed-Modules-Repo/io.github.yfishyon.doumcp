@@ -10,6 +10,9 @@ import io.github.yfishyon.doumcp.features.comment.tool.registerCommentPublishToo
 import io.github.yfishyon.doumcp.features.comment.tool.registerCommentTools
 import io.github.yfishyon.doumcp.features.database.bridge.DatabaseBridge
 import io.github.yfishyon.doumcp.features.database.tool.registerDatabaseTools
+import io.github.yfishyon.doumcp.features.devtool.tool.registerDevtoolRuntimeTools
+import io.github.yfishyon.doumcp.features.devtool.tool.registerDevtoolSearchTools
+import io.github.yfishyon.doumcp.features.devtool.tool.registerDevtoolWatchTools
 import io.github.yfishyon.doumcp.features.im.tool.registerImTools
 import io.github.yfishyon.doumcp.features.search.tool.registerSearchTools
 import io.github.yfishyon.doumcp.features.system.tool.registerSystemTools
@@ -44,6 +47,9 @@ object McpServerHost {
     @Volatile
     private var started = false
 
+    /** 启动序号：stop() 递增，使已通过端口预检但尚未落地的启动任务自我作废 */
+    private var launchSeq = 0L
+
     private var engine: io.ktor.server.engine.EmbeddedServer<*, *>? = null
 
     /** 启动任务队列（daemon，热重载时随 stop 一并关停） */
@@ -62,13 +68,15 @@ object McpServerHost {
                         .newSingleThreadExecutor { runnable ->
                             Thread(runnable).apply { isDaemon = true }
                         }.also { launcher = it }
-            exec.execute { startBlocking(port) }
+            val seq = ++launchSeq
+            exec.execute { startBlocking(port, seq) }
         }
     }
 
     /** 停止服务并给排空时间（热重载前调用）；未执行的启动任务一并取消 */
     fun stop() {
         synchronized(this) {
+            launchSeq++
             launcher?.shutdownNow()
             launcher = null
             runCatching { engine?.stop(1_000, 5_000) }
@@ -77,28 +85,31 @@ object McpServerHost {
         }
     }
 
-    private fun startBlocking(port: Int) {
-        synchronized(this) {
-            if (started) return
-
-            var portFree = false
-            for (attempt in 1..3) {
-                portFree =
-                    runCatching {
-                        java.net.ServerSocket(port, 1, java.net.InetAddress.getByName("127.0.0.1")).use { }
-                    }.isSuccess
-                if (portFree) break
-                try {
-                    Thread.sleep(500)
-                } catch (_: InterruptedException) {
-                    return
-                }
-            }
-            if (!portFree) {
-                ModLog.e("MCP：端口 $port 持续被占用，放弃启动")
+    private fun startBlocking(
+        port: Int,
+        seq: Long,
+    ) {
+        // 端口预检含重试等待，放在锁外，避免阻塞并发的 start()/stop()
+        var portFree = false
+        for (attempt in 1..3) {
+            portFree =
+                runCatching {
+                    java.net.ServerSocket(port, 1, java.net.InetAddress.getByName("127.0.0.1")).use { }
+                }.isSuccess
+            if (portFree) break
+            try {
+                Thread.sleep(500)
+            } catch (_: InterruptedException) {
                 return
             }
+        }
+        if (!portFree) {
+            ModLog.e("MCP：端口 $port 持续被占用，放弃启动")
+            return
+        }
 
+        synchronized(this) {
+            if (started || seq != launchSeq) return
             try {
                 startInternal(port)
                 started = true
@@ -194,7 +205,7 @@ object McpServerHost {
         }
 
         val registrations =
-            listOf<Pair<String, Server.() -> Unit>>(
+            mutableListOf<Pair<String, Server.() -> Unit>>(
                 "account" to { registerAccountTools() },
                 "video" to { registerVideoTools() },
                 "im" to { registerImTools() },
@@ -204,6 +215,12 @@ object McpServerHost {
                 "system" to { registerSystemTools() },
                 "database" to { registerDatabaseTools() },
             )
+        // 逆向调试工具只在 debug 包启用
+        if (BuildConfig.DEBUG) {
+            registrations += "devtool_search" to { registerDevtoolSearchTools() }
+            registrations += "devtool_runtime" to { registerDevtoolRuntimeTools() }
+            registrations += "devtool_watch" to { registerDevtoolWatchTools() }
+        }
         for ((name, register) in registrations) {
             runCatching { register(server) }
                 .onFailure { ModLog.e("MCP：$name 工具注册失败", it) }
