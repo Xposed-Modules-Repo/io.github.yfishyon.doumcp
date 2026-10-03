@@ -45,6 +45,7 @@ app/src/main/java/io/github/yfishyon/doumcp/
 7. **MCP 工具返回统一 `{"ok":true/false,...}` JSON 结构**——`toolCall` 会校验（非法 JSON / 缺 ok 字段会被拦截）；豁免：`ping`（裸 pong，连通性检查）
 8. 调试代码用完即删；诊断性 Log.i 不留，只留错误与关键节点
 9. **每次 commit 前必须跑 `ktlint --format "app/src/main/java/**/*.kt"` 并确认复查无错误**
+10. **commit message 一律用中文**
 
 ## 日志
 
