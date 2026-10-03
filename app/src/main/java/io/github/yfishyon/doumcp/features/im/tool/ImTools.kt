@@ -1,5 +1,6 @@
 package io.github.yfishyon.doumcp.features.im.tool
 
+import io.github.yfishyon.doumcp.core.addDouMcpTool
 import io.github.yfishyon.doumcp.core.boolArg
 import io.github.yfishyon.doumcp.core.boolArgOrNull
 import io.github.yfishyon.doumcp.core.intArg
@@ -14,7 +15,7 @@ import kotlinx.coroutines.withContext
 
 /** IM 相关 MCP 工具注册。 */
 internal fun Server.registerImTools() {
-    addTool(
+    addDouMcpTool(
         name = "getMessages",
         description =
             "分页拉取指定会话的消息列表（文本/图片/分享卡片等，按时间正序）。" +
@@ -26,8 +27,11 @@ internal fun Server.registerImTools() {
         val conversationId = request.arguments.stringArg("conversationId") ?: ""
         val cursor = request.arguments.stringArg("cursor")?.toLongOrNull()
         val limit = request.arguments.intArg("limit", 20)
-        val msgTypes = request.arguments.stringArg("msgTypes")
-            ?.split(",")?.mapNotNull { it.trim().toIntOrNull() } ?: emptyList()
+        val msgTypes =
+            request.arguments
+                .stringArg("msgTypes")
+                ?.split(",")
+                ?.mapNotNull { it.trim().toIntOrNull() } ?: emptyList()
         val sender = request.arguments.stringArg("sender") ?: ""
         val keyword = request.arguments.stringArg("keyword") ?: ""
         withContext(Dispatchers.IO) {
@@ -35,7 +39,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "sendTextMessage",
         description =
             "发送文本消息到指定会话（单聊/群聊通用）。参数 conversationId（从 getConversations 取）、" +
@@ -52,7 +56,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "sendImageMessage",
         description =
             "发送本地图片到指定会话（单聊/群聊通用）。参数 conversationId（从 getConversations 取）、" +
@@ -66,7 +70,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "setMessageReaction",
         description =
             "给指定消息添加/取消表情表态（与长按消息的面板表情一致，支持一次多个）。" +
@@ -89,7 +93,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "sendTypingStatus",
         description =
             "向指定会话发送输入状态（对方聊天页顶部会显示\"对方正在输入\"）。" +
@@ -104,7 +108,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "revokeMessage",
         description =
             "撤回自己发送的消息（对方会看到撤回提示）。参数 conversationId（从 getConversations 取）、" +
@@ -117,7 +121,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "editMessage",
         description =
             "编辑自己发送的文本消息（对方端会显示\"已编辑\"）。" + // 实际上并不会，但我不想改
@@ -132,7 +136,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "markConversationRead",
         description =
             "把指定会话标记为已读（清零该会话的未读数，读到最新消息）。" +
@@ -144,7 +148,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "getUnreadCount",
         description =
             "获取当前账号的全局未读消息统计：总未读数、排除免打扰后的未读数、" +
@@ -155,7 +159,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "getEmojis",
         description =
             "获取抖音云表情（小表情）目录，可用于 sendTextMessage 里按 [表情名] 语法发送。" +
@@ -169,7 +173,7 @@ internal fun Server.registerImTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "getConversations",
         description =
             "获取当前账号的私信会话列表：会话ID、对方名字/头像/uid、未读数、最后消息、" +

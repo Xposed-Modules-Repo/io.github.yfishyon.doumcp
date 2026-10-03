@@ -114,7 +114,12 @@ object ImMsgBridge {
     }
 
     /** 消息过滤：msgTypes 精确集合、sender 精确 uid、keyword 按文本模糊 */
-    private fun matchesMessage(json: JSONObject, msgTypes: List<Int>, sender: String, keyword: String): Boolean {
+    private fun matchesMessage(
+        json: JSONObject,
+        msgTypes: List<Int>,
+        sender: String,
+        keyword: String,
+    ): Boolean {
         if (msgTypes.isNotEmpty() && json.optInt("msgType") !in msgTypes) return false
         if (sender.isNotEmpty() && json.optString("sender") != sender) return false
         if (keyword.isNotEmpty() && !json.optString("text").contains(keyword, ignoreCase = true)) return false
@@ -897,7 +902,9 @@ object ImMsgBridge {
             ) { _, m, args ->
                 when (m.name) {
                     "onSuccess" -> sentMessage = args?.firstOrNull()
+
                     "onFailure" -> error = "IM 返回失败"
+
                     // 成败之外不推进等待方：宿主回调真正到达前的对象访问不能被当作发送完成
                     else -> return@newProxyInstance null
                 }

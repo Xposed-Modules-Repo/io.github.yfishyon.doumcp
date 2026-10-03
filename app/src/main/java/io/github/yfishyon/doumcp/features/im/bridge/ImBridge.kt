@@ -266,14 +266,19 @@ object ImBridge {
         }.getOrNull()
 
     /** 会话过滤：keyword 按名字/备注/会话ID 模糊；isGroup 精确匹配群/单聊 */
-    private fun matchesConversation(json: JSONObject, keyword: String, isGroup: Boolean?): Boolean {
+    private fun matchesConversation(
+        json: JSONObject,
+        keyword: String,
+        isGroup: Boolean?,
+    ): Boolean {
         if (isGroup != null && json.optBoolean("isGroup") != isGroup) return false
         if (keyword.isEmpty()) return true
-        val text = buildString {
-            append(json.optString("name")).append(' ')
-            append(json.optString("remarkName")).append(' ')
-            append(json.optString("conversationId"))
-        }
+        val text =
+            buildString {
+                append(json.optString("name")).append(' ')
+                append(json.optString("remarkName")).append(' ')
+                append(json.optString("conversationId"))
+            }
         return text.contains(keyword, ignoreCase = true)
     }
 

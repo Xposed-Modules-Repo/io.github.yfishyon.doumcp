@@ -3,6 +3,8 @@ package io.github.yfishyon.doumcp
 import android.content.Context
 import io.github.yfishyon.doumcp.core.DouToastHelper
 import io.github.yfishyon.doumcp.core.ModLog
+import io.github.yfishyon.doumcp.core.ToolRegistry
+import io.github.yfishyon.doumcp.core.addDouMcpTool
 import io.github.yfishyon.doumcp.features.account.tool.registerAccountTools
 import io.github.yfishyon.doumcp.features.comment.tool.registerCommentPublishTools
 import io.github.yfishyon.doumcp.features.comment.tool.registerCommentTools
@@ -12,13 +14,18 @@ import io.github.yfishyon.doumcp.features.im.tool.registerImTools
 import io.github.yfishyon.doumcp.features.search.tool.registerSearchTools
 import io.github.yfishyon.doumcp.features.system.tool.registerSystemTools
 import io.github.yfishyon.doumcp.features.video.tool.registerVideoTools
+import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCallPipeline
 import io.ktor.server.application.call
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.request.header
+import io.ktor.server.request.receiveText
 import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.routing
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.server.ServerOptions
 import io.modelcontextprotocol.kotlin.sdk.server.mcpStreamableHttp
@@ -26,6 +33,8 @@ import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.ServerCapabilities
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 
 /**
  * MCP 服务宿主：Ktor Streamable HTTP（仅监听 127.0.0.1）+ Bearer 鉴权，注册全部功能包工具。
@@ -49,9 +58,10 @@ object McpServerHost {
             if (started) return
             val exec =
                 launcher?.takeIf { !it.isShutdown }
-                    ?: java.util.concurrent.Executors.newSingleThreadExecutor { runnable ->
-                        Thread(runnable).apply { isDaemon = true }
-                    }.also { launcher = it }
+                    ?: java.util.concurrent.Executors
+                        .newSingleThreadExecutor { runnable ->
+                            Thread(runnable).apply { isDaemon = true }
+                        }.also { launcher = it }
             exec.execute { startBlocking(port) }
         }
     }
@@ -106,7 +116,7 @@ object McpServerHost {
 
         val server =
             Server(
-                serverInfo = Implementation(name = "doumcp", version = "1.0.0"),
+                serverInfo = Implementation(name = "doumcp", version = "1.1"),
                 options =
                     ServerOptions(
                         capabilities =
@@ -129,6 +139,43 @@ object McpServerHost {
                         }
                     }
                 }
+                routing {
+                    // GET /api：列出全部工具名
+                    get("/api") {
+                        call.respondText(
+                            org.json
+                                .JSONObject()
+                                .put("ok", true)
+                                .put("tools", org.json.JSONArray(ToolRegistry.names()))
+                                .toString(),
+                            ContentType.Application.Json,
+                        )
+                    }
+                    // POST /api/{工具名}：请求体即参数 JSON，返回工具结果
+                    post("/api/{name}") {
+                        val name = call.parameters["name"].orEmpty()
+                        val body = call.receiveText()
+                        val arguments =
+                            runCatching {
+                                if (body.isBlank()) null else Json.parseToJsonElement(body).jsonObject
+                            }.getOrNull()
+                        val result = ToolRegistry.call(name, arguments)
+                        if (result == null) {
+                            call.respondText(
+                                org.json
+                                    .JSONObject()
+                                    .put("ok", false)
+                                    .put("error", "未知工具: $name")
+                                    .toString(),
+                                ContentType.Application.Json,
+                                HttpStatusCode.NotFound,
+                            )
+                        } else {
+                            val text = result.content.filterIsInstance<TextContent>().joinToString("") { it.text }
+                            call.respondText(text, ContentType.Application.Json)
+                        }
+                    }
+                }
                 mcpStreamableHttp { server }
             }
         serverEngine.start(wait = false)
@@ -139,7 +186,7 @@ object McpServerHost {
 
     /** 注册工具：ping 为连通性检查（返回裸 pong，不走统一 JSON 结构），其余按功能包挂载 */
     private fun registerTools(server: Server) {
-        server.addTool(
+        server.addDouMcpTool(
             name = "ping",
             description = "测试抖M服务是否存活，返回 pong",
         ) { _ ->

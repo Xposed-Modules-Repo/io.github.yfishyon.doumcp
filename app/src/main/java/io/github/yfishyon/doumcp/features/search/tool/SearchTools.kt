@@ -1,5 +1,6 @@
 package io.github.yfishyon.doumcp.features.search.tool
 
+import io.github.yfishyon.doumcp.core.addDouMcpTool
 import io.github.yfishyon.doumcp.core.errorResult
 import io.github.yfishyon.doumcp.core.intArg
 import io.github.yfishyon.doumcp.core.stringArg
@@ -11,7 +12,7 @@ import kotlinx.coroutines.withContext
 
 /** 搜索相关 MCP 工具注册。 */
 internal fun Server.registerSearchTools() {
-    addTool(
+    addDouMcpTool(
         name = "search",
         description =
             "抖音综合搜索，返回内容卡片列表（作品/音乐/话题等，不含账号）。" +
@@ -20,7 +21,7 @@ internal fun Server.registerSearchTools() {
     ) { request ->
         val keyword =
             request.arguments.stringArg("keyword")
-                ?: return@addTool errorResult("缺少 keyword 参数")
+                ?: return@addDouMcpTool errorResult("缺少 keyword 参数")
         val cursor = request.arguments.intArg("cursor", 0)
         val count = request.arguments.intArg("count", 10)
         val type = request.arguments.intArg("type", -1).takeIf { it >= 0 }
@@ -30,7 +31,7 @@ internal fun Server.registerSearchTools() {
         }
     }
 
-    addTool(
+    addDouMcpTool(
         name = "searchUsers",
         description =
             "抖音账号搜索，按关键词返回账号列表（uid/昵称/抖音号/粉丝数/头像/认证）。" +
@@ -39,7 +40,7 @@ internal fun Server.registerSearchTools() {
     ) { request ->
         val keyword =
             request.arguments.stringArg("keyword")
-                ?: return@addTool errorResult("缺少 keyword 参数")
+                ?: return@addDouMcpTool errorResult("缺少 keyword 参数")
         val cursor = request.arguments.intArg("cursor", 0)
         val count = request.arguments.intArg("count", 10)
         withContext(Dispatchers.IO) {

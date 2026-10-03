@@ -401,7 +401,10 @@ object CommentBridge {
     // ==================== 数据提取 ====================
 
     /** 从评论列表模型提取 JSON（翻页信息 + 评论数组）。 */
-    private fun extractCommentList(commentItemList: Any, keyword: String): String {
+    private fun extractCommentList(
+        commentItemList: Any,
+        keyword: String,
+    ): String {
         val json = JSONObject()
         json.put("ok", true)
 

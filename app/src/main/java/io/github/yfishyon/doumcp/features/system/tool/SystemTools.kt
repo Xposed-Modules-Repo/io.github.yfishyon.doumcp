@@ -1,5 +1,6 @@
 package io.github.yfishyon.doumcp.features.system.tool
 
+import io.github.yfishyon.doumcp.core.addDouMcpTool
 import io.github.yfishyon.doumcp.core.stringArg
 import io.github.yfishyon.doumcp.core.toolCall
 import io.modelcontextprotocol.kotlin.sdk.server.Server
@@ -7,7 +8,7 @@ import org.json.JSONObject
 
 /** 系统信息相关 MCP 工具注册。 */
 internal fun Server.registerSystemTools() {
-    addTool(
+    addDouMcpTool(
         name = "getCurrentTime",
         description =
             "获取抖音设备上的当前时间（本地时区）。" +

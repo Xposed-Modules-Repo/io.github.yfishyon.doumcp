@@ -84,7 +84,11 @@ object ProfileBridge {
         var currentClass: Class<*>? = obj.javaClass
         while (currentClass != null && currentClass != Any::class.java) {
             for (field in currentClass.declaredFields) {
-                if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+                if (java.lang.reflect.Modifier
+                        .isStatic(field.modifiers)
+                ) {
+                    continue
+                }
                 field.isAccessible = true
                 when (val value = runCatching { field.get(obj) }.getOrNull()) {
                     null -> Unit
@@ -110,7 +114,11 @@ object ProfileBridge {
         var currentClass: Class<*>? = obj.javaClass
         while (currentClass != null && currentClass != Any::class.java) {
             for (field in currentClass.declaredFields) {
-                if (java.lang.reflect.Modifier.isStatic(field.modifiers)) continue
+                if (java.lang.reflect.Modifier
+                        .isStatic(field.modifiers)
+                ) {
+                    continue
+                }
                 field.isAccessible = true
                 val value = runCatching { field.get(obj) }.getOrNull() ?: continue
                 val converted = convertDeep(value, visited, depth) ?: continue
@@ -127,26 +135,47 @@ object ProfileBridge {
         depth: Int,
     ): Any? =
         when (value) {
-            is String -> value.ifEmpty { null }
-            is Boolean, is Int, is Long -> value
-            is Double -> value.takeIf { it.isFinite() }
-            is Float -> value.takeIf { it.isFinite() }
-            is JSONObject, is JSONArray -> value
-            is Collection<*> ->
+            is String -> {
+                value.ifEmpty { null }
+            }
+
+            is Boolean, is Int, is Long -> {
+                value
+            }
+
+            is Double -> {
+                value.takeIf { it.isFinite() }
+            }
+
+            is Float -> {
+                value.takeIf { it.isFinite() }
+            }
+
+            is JSONObject, is JSONArray -> {
+                value
+            }
+
+            is Collection<*> -> {
                 JSONArray().apply {
                     value.forEach { item -> item?.let { convertDeep(it, visited, depth - 1)?.let { c -> put(c) } } }
                 }
-            is Array<*> ->
+            }
+
+            is Array<*> -> {
                 JSONArray().apply {
                     value.forEach { item -> item?.let { convertDeep(it, visited, depth - 1)?.let { c -> put(c) } } }
                 }
-            is Map<*, *> ->
+            }
+
+            is Map<*, *> -> {
                 JSONObject().apply {
                     value.forEach { (k, v) ->
                         v?.let { convertDeep(it, visited, depth - 1)?.let { c -> put(k.toString(), c) } }
                     }
                 }
-            else ->
+            }
+
+            else -> {
                 if (depth <= 0 || !visited.add(value)) {
                     null
                 } else {
@@ -156,6 +185,7 @@ object ProfileBridge {
                         visited.remove(value)
                     }
                 }
+            }
         }
 
     private fun errorJson(message: String): String = JSONObject().put("ok", false).put("error", message).toString()
