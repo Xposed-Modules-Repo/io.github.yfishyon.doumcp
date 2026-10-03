@@ -73,8 +73,8 @@ object SearchBridge {
 
         // 同步执行：Call.execute() → Response
         val response =
-            Reflect.getter(call, "execute")
-                ?: return errorJson("请求执行失败（execute 不可用）")
+            runCatching { Reflect.invokeOrThrow(call, "execute") }
+                .getOrElse { return errorJson("请求执行失败: ${it.message ?: it}") }
         val body =
             readBodyText(response)
                 ?: return errorJson("响应体为空")
@@ -118,8 +118,8 @@ object SearchBridge {
             genericCall.invoke(api, USER_SEARCH_PATH, params)
                 ?: return errorJson("请求对象创建失败")
         val response =
-            Reflect.getter(call, "execute")
-                ?: return errorJson("请求执行失败（execute 不可用）")
+            runCatching { Reflect.invokeOrThrow(call, "execute") }
+                .getOrElse { return errorJson("请求执行失败: ${it.message ?: it}") }
         val body =
             readBodyText(response)
                 ?: return errorJson("响应体为空")

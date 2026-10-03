@@ -74,10 +74,12 @@ app/src/main/java/io/github/yfishyon/doumcp/
 - 抽象方法不能 hook；Retrofit 接口找实现类或调用方
 - 调宿主挂起方法：Proxy 宿主 classloader 的 Continuation + 宿主 EmptyCoroutineContext；挂起标记用 `is Enum<*> && name == "COROUTINE_SUSPENDED"` 判定
 
-## 服务端可见标识
+## 评论发布（features/comment）
 
-以下固定字符串随请求上送，可识别模块来源（有意保留）：
-- 视频详情/子评论请求的 channel 参数、评论发布的 enter_from 均为 `doumcp`
+- 走宿主自己的发布接口，不手拼请求：Retrofit 服务入口 → 按主站域名建 Retrofit → `create(评论接口)`，
+  实参按每个参数上的表单字段名填充（只给业务字段赋值，其余留空，Retrofit 会跳过空值字段）
+- 参数默认值取自宿主的发布参数对象（`need_risk_check=1`、`publish_scene=unknown`、`is_commerce=0` 等）
+- `enter_from` 是页面来源，值域是宿主的页面枚举（推荐流 `homepage_hot` 是其中的基准值）
 
 ## 数据库工具（features/database）
 

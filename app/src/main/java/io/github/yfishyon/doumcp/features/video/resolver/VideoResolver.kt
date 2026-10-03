@@ -8,7 +8,8 @@ import java.lang.reflect.Method
 /**
  * 视频域的定位器。
  *
- * 持有视频详情接口路径（全等锚点）的类里，静态方法 (String, String) → 视频模型。
+ * 持有视频详情接口路径（全等锚点）的类里，静态方法 (作品 ID, 来源标记) → 视频模型。
+ * 来源标记是页面来源，无页面上下文时与宿主自己内部调用一样传空串。
  */
 object VideoResolver {
     private const val VIDEO_DETAIL_PATH = "/aweme/v1/aweme/detail/"

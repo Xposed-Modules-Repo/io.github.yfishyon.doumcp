@@ -64,7 +64,7 @@ Claude / MCP 客户端
 | 视频 | `getUserAwemes` | 用户作品列表（分页） |
 | 搜索 | `search` | 综合搜索（聚合或 type 过滤） |
 | 评论 | `getComments` / `getCommentReplies` | 一级评论 / 楼中楼（含表情、图片、@提及） |
-| 评论 | `postComment` | 发表评论（顶评/回复/楼中楼，云表情 `[表情名]` 语法） |
+| 评论 | `postComment` | 发表评论（顶评/回复/楼中楼/@提及，云表情 `[表情名]` 语法） |
 | IM | `getConversations` | 会话列表（未读/最后消息/火花状态） |
 | IM | `getMessages` | 消息分页（文本/图片/卡片全类型，含引用关系） |
 | IM | `sendTextMessage` | 发文本（支持 quoteMessageId 引用回复） |

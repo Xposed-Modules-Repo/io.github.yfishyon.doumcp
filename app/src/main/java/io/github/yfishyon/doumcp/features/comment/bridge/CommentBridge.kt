@@ -37,6 +37,7 @@ object CommentBridge {
             "isAuthorDigged",
             "replyId",
             "replyToReplyId",
+            "replyToUserId",
             "replyToUserName",
             "rootCommentId",
         )
@@ -261,7 +262,7 @@ object CommentBridge {
     private fun fetchAweme(awemeId: String): Any? {
         awemeContextCache[awemeId]?.let { return it }
         val method = VideoResolver.resolveDetailMethod() ?: return null
-        val aweme = runCatching { method.invoke(null, awemeId, "doumcp") }.getOrNull() ?: return null
+        val aweme = runCatching { method.invoke(null, awemeId, "") }.getOrNull() ?: return null
         awemeContextCache[awemeId] = aweme
         return aweme
     }

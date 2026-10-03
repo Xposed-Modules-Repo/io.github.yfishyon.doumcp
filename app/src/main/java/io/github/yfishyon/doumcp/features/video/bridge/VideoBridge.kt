@@ -39,7 +39,7 @@ object VideoBridge {
                 ?: return errorJson("视频详情接口未定位（DexKit 未就绪或特征失效）")
 
         val aweme =
-            runCatching { fetchMethod.invoke(null, awemeId, "doumcp") }
+            runCatching { fetchMethod.invoke(null, awemeId, "") }
                 .getOrElse { return errorJson("视频详情请求失败: ${it.cause ?: it}") }
                 ?: return errorJson("视频不存在或已被删除")
 

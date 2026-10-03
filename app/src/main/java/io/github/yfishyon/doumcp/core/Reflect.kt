@@ -71,6 +71,23 @@ object Reflect {
         return runCatching { method.invoke(target, *args) }.getOrNull()
     }
 
+    /**
+     * 调无参方法，异常原样抛出（不吞）——诊断网络调用失败原因时用。
+     */
+    fun invokeOrThrow(
+        holder: Any,
+        name: String,
+    ): Any {
+        val method =
+            holder.javaClass.methods.firstOrNull { it.name == name && it.parameterCount == 0 }
+                ?: throw IllegalStateException("方法不存在: $name")
+        return try {
+            method.invoke(holder) ?: throw IllegalStateException("$name 返回 null")
+        } catch (e: java.lang.reflect.InvocationTargetException) {
+            throw (e.cause ?: e)
+        }
+    }
+
     /** 调无参 getter。 */
     fun getter(
         holder: Any,
