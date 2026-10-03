@@ -4,12 +4,14 @@
 
 与走网页解析 / 协议模拟的抖音 MCP 不同：抖M 活在抖音自己的进程里，所有操作复用宿主的接口与 IM SDK —— 登录态、设备签名、加密全部现成，稳定跟随抖音版本运行。
 
+📦 LSPosed 模块仓库：[Xposed-Modules-Repo/io.github.yfishyon.doumcp](https://github.com/Xposed-Modules-Repo/io.github.yfishyon.doumcp) —— 可在 LSPosed 管理器里直接搜到并下载
+
 ## ✨ 功能特性
 
 - **账号** —— 多账号列表 / 一键切换 / 任意用户资料（uid 或 secUid）
 - **私信 IM** —— 会话列表（火花/小火人）、消息分页（全类型解析）、发文本（含引用回复）、发图（同步返回 msgId）、撤回、编辑、表情表态、输入状态、已读、未读统计、云表情目录
 - **视频** —— 作品详情（视频/图文）、用户作品列表（分页）
-- **评论** —— 一级评论 + 楼中楼（表情/图片/@提及）、发表评论（顶评/回复/楼中楼）
+- **评论** —— 一级评论 + 楼中楼（表情/图片/@提及）、发表评论（顶评/回复/楼中楼，文字 / 表情包 / 图片）
 - **搜索** —— 综合搜索（聚合或按类型过滤，分页）
 - **本地数据库** —— 直接 SQL 查询抖音全部 SQLite 库；**加密库自动解密**（含 IM 消息库，任意账号）
 - **进程内服务** —— MCP 服务跑在抖音进程内，回环地址 + Bearer 密钥鉴权
@@ -54,7 +56,7 @@ Claude / MCP 客户端
 
 > 手机与客户端需在同一网络；未配置密钥时服务不鉴权（仅建议本机调试使用）。
 
-## 🧰 可用工具（26 个）
+## 🧰 可用工具（28 个）
 
 | 域 | 工具 | 功能 |
 |----|------|------|
@@ -64,7 +66,9 @@ Claude / MCP 客户端
 | 视频 | `getUserAwemes` | 用户作品列表（分页） |
 | 搜索 | `search` | 综合搜索（聚合或 type 过滤） |
 | 评论 | `getComments` / `getCommentReplies` | 一级评论 / 楼中楼（含表情、图片、@提及） |
-| 评论 | `postComment` | 发表评论（顶评/回复/楼中楼/@提及，云表情 `[表情名]` 语法） |
+| 评论 | `getCommentStickers` | 评论表情包（动图）推荐清单 |
+| 评论 | `getStickerSets` | 我添加的表情集 / 表情集里的表情（带文字描述） |
+| 评论 | `postComment` | 发表评论（顶评/回复/楼中楼/@提及，云表情 `[表情名]` 语法、表情包、本地图片） |
 | IM | `getConversations` | 会话列表（未读/最后消息/火花状态） |
 | IM | `getMessages` | 消息分页（文本/图片/卡片全类型，含引用关系） |
 | IM | `sendTextMessage` | 发文本（支持 quoteMessageId 引用回复） |
@@ -100,7 +104,7 @@ queryDatabase: {"database":"encrypted_<uid>_im.db",
 ./gradlew assembleRelease        # 发布包
 ```
 
-- `versionName` = 当前提交的短 git 哈希；`versionCode` 在 `app/build.gradle.kts` 手动递增
+- `versionName` 写在 `app/build.gradle.kts`（发布时同步打同名 tag）；`versionCode` = 提交数
 - 版本号参与 DexKit 定位缓存键（模块或抖音任一升级，缓存自动失效重扫）
 
 ### 项目结构

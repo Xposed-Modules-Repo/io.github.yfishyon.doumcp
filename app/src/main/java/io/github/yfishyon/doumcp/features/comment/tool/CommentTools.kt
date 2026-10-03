@@ -6,6 +6,8 @@ import io.github.yfishyon.doumcp.core.intArg
 import io.github.yfishyon.doumcp.core.stringArg
 import io.github.yfishyon.doumcp.core.toolCall
 import io.github.yfishyon.doumcp.features.comment.bridge.CommentBridge
+import io.github.yfishyon.doumcp.features.comment.bridge.CommentStickerBridge
+import io.github.yfishyon.doumcp.features.comment.bridge.CommentStickerSetBridge
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -60,6 +62,41 @@ internal fun Server.registerCommentTools() {
                     keyword,
                 )
             }
+        }
+    }
+
+    addDouMcpTool(
+        name = "getCommentStickers",
+        description =
+            "获取可用的评论表情包（动图，非云表情小黄脸）清单，与抖音评论表情面板同一份数据。" +
+                "awemeId（可选）为作品 ID；count（可选，默认 30）拉取条数；" +
+                "keyword（可选）按表情名过滤。" +
+                "返回 JSON：stickers 数组，每项含 id（发评论时作 stickerId）、宽高、stickerType、" +
+                "animateUrls（动图地址列表，可直接打开看）与 staticUrls（静图地址列表）；" +
+                "表情包本身没有名字，items 里通常不带 name",
+    ) { request ->
+        val awemeId = request.arguments.stringArg("awemeId") ?: ""
+        val count = request.arguments.intArg("count", 30)
+        val keyword = request.arguments.stringArg("keyword") ?: ""
+
+        withContext(Dispatchers.IO) {
+            toolCall { CommentStickerBridge.getStickersJson(awemeId, count, keyword) }
+        }
+    }
+
+    addDouMcpTool(
+        name = "getStickerSets",
+        description =
+            "获取用户添加的表情集（表情包专辑），以及表情集里的表情。" +
+                "不传 setId：列出表情集，每项含 id、name（表情集名）、description、stickerType。" +
+                "传 setId：列出该表情集里的表情，每项含 id（发评论时作 stickerId）、name（表情的文字描述）、" +
+                "宽高、animateUrls（动图地址列表，可直接打开看）、staticUrls。" +
+                "表情集里的表情都带文字描述，适合按语义挑一个发评论",
+    ) { request ->
+        val setId = request.arguments.stringArg("setId") ?: ""
+
+        withContext(Dispatchers.IO) {
+            toolCall { CommentStickerSetBridge.getSetsJson(setId) }
         }
     }
 }

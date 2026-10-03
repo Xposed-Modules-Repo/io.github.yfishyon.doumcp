@@ -35,6 +35,9 @@ object CommentPublishBridge {
     /** 提及类型（话题标签是 1） */
     private const val TYPE_MENTION = 0
 
+    /** 图片来源标记：相册图片（宿主的来源枚举里该值即相册） */
+    private const val IMAGE_SOURCE = "picture"
+
     private const val EMPTY_TEXT_EXTRA = "[]"
     private const val TIMEOUT_SEC = 30L
 
@@ -60,6 +63,8 @@ object CommentPublishBridge {
      * @param replyToUid 被回复评论的作者 uid（决定「回复 @某人」的展示与通知）
      * @param replyUid 被回复评论自身所回复的用户 uid
      * @param mentions @ 提及的用户
+     * @param sticker 表情包模型（getCommentStickers 里按 id 取到的表情对象）
+     * @param images 已上传的图片（由 评论图片上传器 返回）
      */
     fun postCommentJson(
         awemeId: String,
@@ -69,28 +74,36 @@ object CommentPublishBridge {
         replyToUid: String = "",
         replyUid: String = "",
         mentions: List<Mention> = emptyList(),
+        sticker: Any? = null,
+        images: List<UploadedImage> = emptyList(),
     ): String {
         if (AccountBridge.getCurrentUserId().isNullOrBlank()) return errorJson("未登录，无法发评论")
-        if (awemeId.isBlank() || text.isBlank()) return errorJson("awemeId 与 text 不能为空")
+        if (awemeId.isBlank()) return errorJson("awemeId 不能为空")
+        if (text.isBlank() && sticker == null && images.isEmpty()) return errorJson("正文、表情包、图片至少给一个")
+
+        val stickerParams = sticker?.let { stickerFields(it) }.orEmpty()
+        if (sticker != null && stickerParams["sticker_uri"] == null) return errorJson("该表情包缺少动图地址")
 
         val api = CommentResolver.api() ?: return errorJson("评论接口创建失败")
         val publish = CommentResolver.resolvePublishMethod() ?: return errorJson("评论发布方法未定位")
 
+        val fields =
+            linkedMapOf<String, Any?>(
+                "aweme_id" to awemeId,
+                "text" to text,
+                "reply_id" to replyCommentId.ifEmpty { null },
+                "reply_to_reply_id" to replyToReplyId.ifEmpty { null },
+                "reply_uid" to replyUid.ifEmpty { null },
+                "reply_to_reply_uid" to replyToUid.ifEmpty { null },
+                "text_extra" to (buildMentions(text, mentions) ?: EMPTY_TEXT_EXTRA),
+            )
+        fields.putAll(DEFAULT_FIELDS)
+        fields.putAll(stickerParams)
+        if (images.isNotEmpty()) fields.putAll(imageFields(images))
+
         val args =
-            runCatching {
-                buildArgs(
-                    publish,
-                    linkedMapOf(
-                        "aweme_id" to awemeId,
-                        "text" to text,
-                        "reply_id" to replyCommentId.ifEmpty { null },
-                        "reply_to_reply_id" to replyToReplyId.ifEmpty { null },
-                        "reply_uid" to replyUid.ifEmpty { null },
-                        "reply_to_reply_uid" to replyToUid.ifEmpty { null },
-                        "text_extra" to (buildMentions(text, mentions) ?: EMPTY_TEXT_EXTRA),
-                    ) + DEFAULT_FIELDS,
-                )
-            }.getOrElse { return errorJson("发布参数构建失败: ${it.cause ?: it}") }
+            runCatching { buildArgs(publish, fields) }
+                .getOrElse { return errorJson("发布参数构建失败: ${it.cause ?: it}") }
 
         val observable =
             runCatching { publish.invoke(api, *args) }
@@ -204,6 +217,43 @@ object CommentPublishBridge {
     ) {
         Reflect.fieldsOf(target.javaClass)[name]?.set(target, value)
     }
+
+    /**
+     * 表情包参数。
+     *
+     * 宿主发布时从输入状态里选中的表情模型取这些字段：表情 ID、表情类型
+     * （来源标记与它同值）、表情包 ID、动图地址、宽高、动图格式、作者。
+     */
+    private fun stickerFields(emoji: Any): Map<String, Any?> {
+        val type = (Reflect.field(emoji, "stickerType") as? Number)?.toInt() ?: 0
+        val animate = Reflect.field(emoji, "animateUrl")
+        return mapOf(
+            "sticker_id" to Reflect.field(emoji, "id")?.toString(),
+            "sticker_type" to type,
+            "origin_package_id" to ((Reflect.field(emoji, "resourcesId") as? Number)?.toLong() ?: 0L),
+            "sticker_uri" to (animate?.let { Reflect.field(it, "uri") } as? String)?.takeIf { it.isNotEmpty() },
+            "sticker_source" to type,
+            "sticker_width" to ((Reflect.field(emoji, "width") as? Number)?.toInt() ?: 0),
+            "sticker_height" to ((Reflect.field(emoji, "height") as? Number)?.toInt() ?: 0),
+            "sticker_format" to Reflect.field(emoji, "animateType"),
+            "sticker_author_sec_uid" to Reflect.field(emoji, "authorId"),
+        )
+    }
+
+    /**
+     * 图片参数。
+     *
+     * 宿主把每张图的信息摊成六个并行的逗号分隔串（地址、宽、高、格式、来源），
+     * 六串按同一个图片顺序一一对应；定位信息宿主仅在相册定位开关打开时才带。
+     */
+    private fun imageFields(images: List<UploadedImage>): Map<String, Any?> =
+        mapOf(
+            "image_uri_list" to images.joinToString(",") { it.uri },
+            "image_widths" to images.joinToString(",") { it.width.toString() },
+            "image_heights" to images.joinToString(",") { it.height.toString() },
+            "image_formats" to images.joinToString(",") { it.format },
+            "image_sources" to images.joinToString(",") { IMAGE_SOURCE },
+        )
 
     /** 阻塞等待 Observable 的下一个结果 */
     private fun awaitObservable(observable: Any): Any? {
