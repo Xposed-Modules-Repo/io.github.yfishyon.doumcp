@@ -1,5 +1,6 @@
 package io.github.yfishyon.doumcp.features.account.tool
 
+import io.github.yfishyon.doumcp.core.boolArg
 import io.github.yfishyon.doumcp.core.errorResult
 import io.github.yfishyon.doumcp.core.stringArg
 import io.github.yfishyon.doumcp.core.toolCall
@@ -35,14 +36,16 @@ internal fun Server.registerAccountTools() {
     addTool(
         name = "getUserProfile",
         description =
-            "获取任意用户的完整资料（昵称、头像、粉丝数、简介等）。" +
-                "参数 uidOrSecUid 支持 uid 或 secUid（自动识别）；查当前登录账号详情也用它",
+            "获取任意用户的资料（昵称、头像、粉丝数、简介等）。" +
+                "参数 uidOrSecUid 支持 uid 或 secUid（自动识别）；查当前登录账号详情也用它；" +
+                "full（可选，默认 false）为 true 时递归展开全部字段（含嵌套对象与数组）",
     ) { request ->
         val uidOrSecUid =
             request.arguments.stringArg("uidOrSecUid")
                 ?: return@addTool errorResult("缺少 uidOrSecUid 参数")
+        val full = request.arguments.boolArg("full", false)
         withContext(Dispatchers.IO) {
-            toolCall { ProfileBridge.getUserProfileJson(uidOrSecUid) }
+            toolCall { ProfileBridge.getUserProfileJson(uidOrSecUid, full) }
         }
     }
 }
