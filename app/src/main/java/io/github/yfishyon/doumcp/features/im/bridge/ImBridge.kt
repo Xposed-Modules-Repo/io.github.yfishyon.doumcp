@@ -88,7 +88,7 @@ object ImBridge {
     internal fun resolveConversationListModel(): Any? =
         runCatching {
             val sdkClass = Class.forName(SDK_MANAGER, false, HostRuntime.requireClassLoader())
-            val instance = sdkClass.getDeclaredField("INSTANCE").get(null)
+            val instance = sdkClass.getDeclaredField("INSTANCE").get(null)!!
             val client = Reflect.getter(instance, "getImSdkClient") ?: return null
             val service = Reflect.getter(client, "getIIMSdkModelService") ?: return null
             Reflect.getter(service, "getConversationListModel")

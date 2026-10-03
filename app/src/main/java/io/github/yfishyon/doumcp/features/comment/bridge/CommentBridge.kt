@@ -286,9 +286,9 @@ object CommentBridge {
         val hostEmptyContext =
             runCatching {
                 classLoader
-                    .loadClass("kotlin.coroutines.EmptyCoroutineContext")
-                    .getField("INSTANCE")
-                    .get(null)
+                    ?.loadClass("kotlin.coroutines.EmptyCoroutineContext")
+                    ?.getField("INSTANCE")
+                    ?.get(null)
             }.getOrNull()
 
         var outcome: Any? = null

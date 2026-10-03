@@ -1,8 +1,8 @@
 package io.github.yfishyon.doumcp.features.account.bridge
 
 import io.github.yfishyon.doumcp.core.ApiPrefix
+import io.github.yfishyon.doumcp.core.ObjectDump
 import io.github.yfishyon.doumcp.features.account.resolver.AccountResolver
-import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Collections
 import java.util.LinkedHashMap
@@ -16,9 +16,6 @@ import java.util.LinkedHashMap
  */
 object ProfileBridge {
     private const val PROFILE_API_PATH = "/aweme/v1/user/profile/other/"
-
-    /** 全量展开的最大层数（宿主对象图很深，无上限会栈溢出）。 */
-    private const val MAX_DEPTH = 16
 
     private val profileCache =
         Collections.synchronizedMap(
@@ -69,124 +66,14 @@ object ProfileBridge {
     ): String {
         val json =
             if (full) {
-                fieldsDeep(user, Collections.newSetFromMap(java.util.IdentityHashMap()), MAX_DEPTH)
+                ObjectDump.deep(user)
             } else {
-                fieldsShallow(user)
+                ObjectDump.shallow(user)
             }
         json.put("ok", true)
         json.put("queriedId", queriedId)
         return json.toString()
     }
-
-    /** 精简字段：只保留字符串与数值，空串跳过，复杂结构丢弃。 */
-    private fun fieldsShallow(obj: Any): JSONObject {
-        val out = JSONObject()
-        var currentClass: Class<*>? = obj.javaClass
-        while (currentClass != null && currentClass != Any::class.java) {
-            for (field in currentClass.declaredFields) {
-                if (java.lang.reflect.Modifier
-                        .isStatic(field.modifiers)
-                ) {
-                    continue
-                }
-                field.isAccessible = true
-                when (val value = runCatching { field.get(obj) }.getOrNull()) {
-                    null -> Unit
-                    is String -> if (value.isNotEmpty()) out.put(field.name, value)
-                    is Boolean, is Int, is Long -> out.put(field.name, value)
-                    is Double -> if (value.isFinite()) out.put(field.name, value)
-                    is Float -> if (value.isFinite()) out.put(field.name, value)
-                    else -> Unit
-                }
-            }
-            currentClass = currentClass.superclass
-        }
-        return out
-    }
-
-    /** 全量字段：递归展开对象 / 集合 / 数组 / Map，只滤空值；visited 阻断对象环，depth 防栈溢出。 */
-    private fun fieldsDeep(
-        obj: Any,
-        visited: MutableSet<Any>,
-        depth: Int,
-    ): JSONObject {
-        val out = JSONObject()
-        var currentClass: Class<*>? = obj.javaClass
-        while (currentClass != null && currentClass != Any::class.java) {
-            for (field in currentClass.declaredFields) {
-                if (java.lang.reflect.Modifier
-                        .isStatic(field.modifiers)
-                ) {
-                    continue
-                }
-                field.isAccessible = true
-                val value = runCatching { field.get(obj) }.getOrNull() ?: continue
-                val converted = convertDeep(value, visited, depth) ?: continue
-                out.put(field.name, converted)
-            }
-            currentClass = currentClass.superclass
-        }
-        return out
-    }
-
-    private fun convertDeep(
-        value: Any,
-        visited: MutableSet<Any>,
-        depth: Int,
-    ): Any? =
-        when (value) {
-            is String -> {
-                value.ifEmpty { null }
-            }
-
-            is Boolean, is Int, is Long -> {
-                value
-            }
-
-            is Double -> {
-                value.takeIf { it.isFinite() }
-            }
-
-            is Float -> {
-                value.takeIf { it.isFinite() }
-            }
-
-            is JSONObject, is JSONArray -> {
-                value
-            }
-
-            is Collection<*> -> {
-                JSONArray().apply {
-                    value.forEach { item -> item?.let { convertDeep(it, visited, depth - 1)?.let { c -> put(c) } } }
-                }
-            }
-
-            is Array<*> -> {
-                JSONArray().apply {
-                    value.forEach { item -> item?.let { convertDeep(it, visited, depth - 1)?.let { c -> put(c) } } }
-                }
-            }
-
-            is Map<*, *> -> {
-                JSONObject().apply {
-                    value.forEach { (k, v) ->
-                        v?.let { convertDeep(it, visited, depth - 1)?.let { c -> put(k.toString(), c) } }
-                    }
-                }
-            }
-
-            else -> {
-                if (depth <= 0 || !visited.add(value)) {
-                    null
-                } else {
-                    try {
-                        fieldsDeep(value, visited, depth - 1).takeIf { it.length() > 0 }
-                    } finally {
-                        visited.remove(value)
-                    }
-                }
-            }
-        }
 
     private fun errorJson(message: String): String = JSONObject().put("ok", false).put("error", message).toString()
 }

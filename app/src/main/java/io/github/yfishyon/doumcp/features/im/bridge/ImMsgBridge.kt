@@ -224,7 +224,7 @@ object ImMsgBridge {
             val content =
                 runCatching {
                     val gsonClass = Class.forName(GSON_UTIL, false, HostRuntime.requireClassLoader())
-                    val gson = gsonClass.getDeclaredField("INSTANCE").get(null)
+                    val gson = gsonClass.getDeclaredField("INSTANCE").get(null)!!
                     gsonClass.methods
                         .first { it.name == "fromJson" && it.parameterCount == 2 }
                         .invoke(gson, oldContent, contentClass)
@@ -234,7 +234,7 @@ object ImMsgBridge {
                 ?.invoke(content, newText)
 
             val gsonClass = Class.forName(GSON_UTIL, false, HostRuntime.requireClassLoader())
-            val gson = gsonClass.getDeclaredField("INSTANCE").get(null)
+            val gson = gsonClass.getDeclaredField("INSTANCE").get(null)!!
             val newContentJson =
                 gsonClass.methods
                     .first { it.name == "toJson" && it.parameterCount == 1 }
@@ -447,7 +447,7 @@ object ImMsgBridge {
 
             // 2. content JSON（与宿主一致的序列化）
             val gsonClass = Class.forName(GSON_UTIL, false, HostRuntime.requireClassLoader())
-            val gson = gsonClass.getDeclaredField("INSTANCE").get(null)
+            val gson = gsonClass.getDeclaredField("INSTANCE").get(null)!!
             val toJson =
                 gsonClass.methods.firstOrNull {
                     it.name == "toJson" && it.parameterCount == 1
@@ -841,7 +841,7 @@ object ImMsgBridge {
     /** 会话列表模型按 ID 取会话（与宿主取法一致）。 */
     private fun resolveConversation(conversationId: String): Any? {
         val apiClass = Class.forName(CONV_LIST_API, false, HostRuntime.requireClassLoader())
-        val companion = apiClass.getDeclaredField("Companion").get(null)
+        val companion = apiClass.getDeclaredField("Companion").get(null)!!
         val inst = Reflect.getter(companion, "inst") ?: return null
         return Reflect.method(inst.javaClass, "getConversation", 1)?.invoke(inst, conversationId)
     }
@@ -943,7 +943,7 @@ object ImMsgBridge {
 
     private fun imSdkClient(): Any? {
         val sdkClass = Class.forName(SDK_MANAGER, false, HostRuntime.requireClassLoader())
-        val instance = sdkClass.getDeclaredField("INSTANCE").get(null)
+        val instance = sdkClass.getDeclaredField("INSTANCE").get(null)!!
         return Reflect.getter(instance, "getImSdkClient")
     }
 
