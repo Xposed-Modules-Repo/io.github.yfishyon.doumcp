@@ -474,6 +474,12 @@ object CommentBridge {
         // 被 @ 的用户
         extractMentionedUsers(comment)?.let { json.put("mentionedUsers", it) }
 
+        // 富文本片段原文（样式区间 + 类型 + 指向的用户）
+        extractTextExtras(comment)?.let { json.put("textExtras", it) }
+
+        // 挂在评论上的对象字段（名字 → 类名 + 其中非空字符串）
+        extractObjectFields(comment)?.let { json.put("objectFields", it) }
+
         // 内嵌的子回复预览
         (Reflect.field(comment, "replyComments") as? List<*>)?.takeIf { it.isNotEmpty() }?.let { replies ->
             val arr = JSONArray()
@@ -532,6 +538,51 @@ object CommentBridge {
             if (item.length() > 0) arr.put(item)
         }
         return arr.takeIf { it.length() > 0 }
+    }
+
+    /**
+     * 评论的富文本片段原文。
+     *
+     * 每个片段描述正文里一段文字的样式区间（区间端点、类型、指向的用户），
+     * 类型与端点字段名混淆，按**值的类型**整项摊开，有多少给多少。
+     */
+    private fun extractTextExtras(comment: Any): JSONArray? {
+        val extras = Reflect.field(comment, "textExtra") as? List<*> ?: return null
+        val arr = JSONArray()
+        for (extra in extras) {
+            extra ?: continue
+            val item = JSONObject()
+            for ((name, _, value) in Reflect.valuesOf(extra)) {
+                when (value) {
+                    is Number -> item.put(name, value)
+                    is String -> if (value.isNotEmpty()) item.put(name, value)
+                }
+            }
+            if (item.length() > 0) arr.put(item)
+        }
+        return arr.takeIf { it.length() > 0 }
+    }
+
+    /**
+     * 评论上挂的对象字段。
+     *
+     * 只列非基础类型、非集合的字段，并把对象里长度正常的字符串一并带出
+     * ——位置、话题等附加数据都挂在这一层。
+     */
+    private fun extractObjectFields(comment: Any): JSONObject? {
+        val out = JSONObject()
+        for ((name, _, value) in Reflect.valuesOf(comment)) {
+            if (value == null || value is String || value is Number || value is Boolean) continue
+            if (value is Collection<*> || value is Map<*, *>) continue
+            val entry = JSONObject().put("class", value.javaClass.name)
+            for ((subName, _, subValue) in Reflect.valuesOf(value)) {
+                if (subValue is String && subValue.isNotEmpty() && subValue.length <= 120) {
+                    entry.put(subName, subValue)
+                }
+            }
+            out.put(name, entry)
+        }
+        return out.takeIf { it.length() > 0 }
     }
 
     /** unix 秒 → 年月日时分秒。 */

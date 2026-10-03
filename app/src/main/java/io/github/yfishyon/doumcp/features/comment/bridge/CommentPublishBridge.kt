@@ -5,6 +5,7 @@ import io.github.yfishyon.doumcp.core.ModLog
 import io.github.yfishyon.doumcp.core.Reflect
 import io.github.yfishyon.doumcp.features.account.bridge.AccountBridge
 import io.github.yfishyon.doumcp.features.comment.resolver.CommentResolver
+import org.json.JSONArray
 import org.json.JSONObject
 import java.lang.reflect.Method
 import java.text.SimpleDateFormat
@@ -35,6 +36,25 @@ object CommentPublishBridge {
     /** 提及类型（话题标签是 1） */
     private const val TYPE_MENTION = 0
 
+    /**
+     * 样式实体的语义名 → 宿主区间类型。
+     *
+     * 类型编号是宿主内部的，调用方只给语义名。
+     */
+    private val ENTITY_TYPES =
+        mapOf(
+            "topic" to 1,
+            "blue" to 2,
+            "search" to 5,
+            "lottery_join" to 9,
+            "lottery_inquire" to 10,
+            "group" to 16,
+            "ai" to 32,
+        )
+
+    /** 区间端点与语义名由实体自己决定，透传时跳过这三个键。 */
+    private val ENTITY_LOCATOR_KEYS = setOf("type", "offset", "length")
+
     /** 图片来源标记：相册图片（宿主的来源枚举里该值即相册） */
     private const val IMAGE_SOURCE = "picture"
 
@@ -63,6 +83,9 @@ object CommentPublishBridge {
      * @param replyToUid 被回复评论的作者 uid（决定「回复 @某人」的展示与通知）
      * @param replyUid 被回复评论自身所回复的用户 uid
      * @param mentions @ 提及的用户
+     * @param entities 样式实体列表（Telegram 风格），每项形如
+     *   {"type":"blue","offset":0,"length":4}：type 用语义名，offset/length 定位正文区间，
+     *   其余键与宿主区间模型的字段同名、按字段类型透传
      * @param sticker 表情包模型（getCommentStickers 里按 id 取到的表情对象）
      * @param images 已上传的图片（由 评论图片上传器 返回）
      */
@@ -74,6 +97,7 @@ object CommentPublishBridge {
         replyToUid: String = "",
         replyUid: String = "",
         mentions: List<Mention> = emptyList(),
+        entities: String = "",
         sticker: Any? = null,
         images: List<UploadedImage> = emptyList(),
     ): String {
@@ -95,7 +119,7 @@ object CommentPublishBridge {
                 "reply_to_reply_id" to replyToReplyId.ifEmpty { null },
                 "reply_uid" to replyUid.ifEmpty { null },
                 "reply_to_reply_uid" to replyToUid.ifEmpty { null },
-                "text_extra" to (buildMentions(text, mentions) ?: EMPTY_TEXT_EXTRA),
+                "text_extra" to (buildTextExtra(text, mentions, entities) ?: EMPTY_TEXT_EXTRA),
             )
         fields.putAll(DEFAULT_FIELDS)
         fields.putAll(stickerParams)
@@ -182,16 +206,14 @@ object CommentPublishBridge {
     }
 
     /**
-     * 文本提及列表 → text_extra 字段。
+     * 文本提及列表 → 区间模型实例。
      *
-     * 用宿主的提及模型与序列化器生成，字段名与宿主请求一致；
      * 文本里找不到「@昵称」的提及会被丢弃。
      */
-    private fun buildMentions(
+    private fun mentionStructs(
         text: String,
         mentions: List<Mention>,
-    ): String? {
-        if (mentions.isEmpty()) return null
+    ): List<Any> {
         val structClass = HostRuntime.hostClass(TEXT_EXTRA_STRUCT)
         val items = ArrayList<Any>(mentions.size)
         for (mention in mentions) {
@@ -205,9 +227,77 @@ object CommentPublishBridge {
             setField(item, "secUid", mention.secUid)
             items.add(item)
         }
+        return items
+    }
+
+    /**
+     * 提及与样式实体 → text_extra 字段。
+     *
+     * 两者都转成宿主的区间模型，合成一个列表后交宿主自己的序列化器。
+     */
+    private fun buildTextExtra(
+        text: String,
+        mentions: List<Mention>,
+        entities: String,
+    ): String? {
+        val items = ArrayList<Any>()
+        items.addAll(mentionStructs(text, mentions))
+        items.addAll(entityStructs(entities))
         if (items.isEmpty()) return null
         val toJson = HostRuntime.hostClass(GSON_UTIL).getMethod("toJson", Any::class.java)
         return toJson.invoke(null, items) as? String
+    }
+
+    /**
+     * 样式实体列表 → 区间模型实例。
+     *
+     * 每项给语义名与正文区间，区间端点与宿主的类型编号在这里落定；
+     * 其余键与宿主区间模型的字段同名，按字段类型收敛（整数/长整数/布尔/字符串）后透传。
+     */
+    private fun entityStructs(entities: String): List<Any> {
+        if (entities.isBlank()) return emptyList()
+        val array = runCatching { JSONArray(entities) }.getOrNull() ?: return emptyList()
+        val structClass = HostRuntime.hostClass(TEXT_EXTRA_STRUCT)
+        val items = ArrayList<Any>(array.length())
+        for (i in 0 until array.length()) {
+            val spec = array.optJSONObject(i) ?: continue
+            val type = ENTITY_TYPES[spec.optString("type")] ?: continue
+            val offset = spec.optInt("offset", -1)
+            val length = spec.optInt("length", -1)
+            if (offset < 0 || length <= 0) continue
+            val item = structClass.getDeclaredConstructor().newInstance()
+            setField(item, "start", offset)
+            setField(item, "end", offset + length)
+            setField(item, "type", type)
+            fillFields(item, spec, ENTITY_LOCATOR_KEYS)
+            items.add(item)
+        }
+        return items
+    }
+
+    /** 逐键把 JSON 里剩下的字段写进宿主对象，按字段类型收敛；skip 里的键调用方已自己处置。 */
+    private fun fillFields(
+        target: Any,
+        spec: JSONObject,
+        skip: Set<String>,
+    ) {
+        val fields = Reflect.fieldsOf(target.javaClass)
+        for (key in spec.keys()) {
+            if (key in skip) continue
+            if (spec.isNull(key)) continue
+            val field = fields[key] ?: continue
+            val raw = spec.get(key)
+            val value: Any? =
+                when (field.type) {
+                    Int::class.javaPrimitiveType, Integer::class.java -> (raw as? Number)?.toInt()
+                    Long::class.javaPrimitiveType, java.lang.Long::class.java -> (raw as? Number)?.toLong()
+                    Boolean::class.javaPrimitiveType, java.lang.Boolean::class.java -> raw as? Boolean
+                    String::class.java -> raw.toString()
+                    else -> null
+                }
+            if (value == null) continue
+            field.set(target, value)
+        }
     }
 
     private fun setField(

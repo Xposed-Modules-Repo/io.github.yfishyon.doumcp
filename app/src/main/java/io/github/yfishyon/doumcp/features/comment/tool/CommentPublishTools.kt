@@ -27,6 +27,15 @@ internal fun Server.registerCommentPublishTools() {
                 "replyToUid 取该子评论作者 uid（getCommentReplies 返回的 uid）；replyUid（可选）取被回复评论所回复的用户 uid。" +
                 "mentions（可选）为 JSON 数组 [{\"uid\":\"..\",\"secUid\":\"..\",\"nickname\":\"..\"}]，" +
                 "文本里写「@昵称」，对应片段会被标为 @提及。" +
+                "entities（可选）为样式实体列表（Telegram 风格），形如 " +
+                "[{\"type\":\"blue\",\"offset\":0,\"length\":6}]：type 用语义名，offset/length 是正文里的" +
+                "区间起点与长度（按 UTF-16 计），其余键与宿主区间模型的字段同名、按字段类型透传" +
+                "（如 userId / conversationId / searchText）。可用 type：blue（蓝字，渲染成蓝色不可点击）、" +
+                "topic（话题：正文里在话题文字前面加 # 才会渲染成可点击的话题，不加 # 就只是纯蓝字、不可点击）、" +
+                "search（搜索词）、ai / group / lottery_join / lottery_inquire（卡片）。" +
+                "entities 与上面的 mentions 可以同时给，两者会合在一起发；@提及只走 mentions，不要用 entities。" +
+                "卡片类由正文前缀决定渲染，正文里必须写对应前缀（[AI互动] / [群聊] / [抽奖] / [中奖]），" +
+                "只给区间不显示；其中群聊卡还要求正文群名与 conversationId 真实匹配。" +
                 "注意：返回 ok 只代表请求被接受，内容可能进入平台审核，可用 getComments 验证是否已展示",
     ) { request ->
         val awemeId =
@@ -38,6 +47,7 @@ internal fun Server.registerCommentPublishTools() {
         val replyToUid = request.arguments.stringArg("replyToUid") ?: ""
         val replyUid = request.arguments.stringArg("replyUid") ?: ""
         val mentions = request.arguments.stringArg("mentions")
+        val entities = request.arguments.stringArg("entities") ?: ""
         val stickerId = request.arguments.stringArg("stickerId") ?: ""
         val imagePaths = parseImagePaths(request.arguments.stringArg("imagePaths"))
 
@@ -65,6 +75,7 @@ internal fun Server.registerCommentPublishTools() {
                     replyToUid = replyToUid,
                     replyUid = replyUid,
                     mentions = parseMentions(mentions),
+                    entities = entities,
                     sticker = sticker,
                     images = images,
                 )
