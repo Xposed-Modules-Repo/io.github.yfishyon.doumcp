@@ -12,8 +12,9 @@ app/src/main/java/io/github/yfishyon/doumcp/
   McpServerHost.kt       MCP 服务宿主（Ktor + 各功能包工具注册）
   ModulePrefs.kt         用户配置（端口/密钥/开关，FastKV 原生 API）
   SettingsInjector.kt    抖音设置页注入"抖M设置"
-  core/                  共享设施：DexKitSupport（桥懒加载+缓存+并发搜索）/ ResolvedCache /
-                         Reflect / ModLog（libxposed 日志）/ DouToastHelper / McpToolExt（toolCall 输出校验）
+  core/                  共享设施：HostRuntime（上下文/classLoader/模块实例单例）/ DexKitSupport（桥懒加载+缓存）/
+                         ResolvedCache / Reflect / ModLog（libxposed 日志）/ DouToastHelper /
+                         McpToolExt（toolCall 输出校验 + 取参助手）/ ObjectDump（对象深度 dump）/ ValueFormat（值展示）
   features/              按功能分包，每个功能包内固定 tool / bridge / resolver 三层：
     account/             账号列表/切换/用户资料
     im/                  会话/消息/表情/输入状态（最大的功能包）
@@ -21,6 +22,8 @@ app/src/main/java/io/github/yfishyon/doumcp/
     comment/             评论读取/发布
     search/              综合搜索
     system/              系统工具（getCurrentTime 等）
+    database/            数据库工具（见下）
+    devtool/             逆向调试（**仅 debug 包注册**）：DexKit 结构查询 / 运行时反射 / 动态 hook
 ```
 
 ## 构建与测试
@@ -30,9 +33,12 @@ app/src/main/java/io/github/yfishyon/doumcp/
 ```
 
 - 构建出 debug 包后安装到设备，等 10 秒热重载生效
+- **debug 与 release 使用同一签名**（`release.keystore`，见 `app/build.gradle.kts`），可直接覆盖安装、互不丢登录态
+- debug 包注册逆向调试工具（`features/devtool`）；release 包用 `BuildConfig.DEBUG` 门控 + R8 裁剪，**不含**这组工具
 - 日志走 libxposed 通道（`ModLog`），logcat 过滤 DouMCP（tag 前缀是 LSPosedLogDaemon）
 - 用户提示：MCP 服务启动后、DexKit 首次建索引完成后都会弹抖音风格 toast（DouToastHelper）
 - 热重载不生效（日志无"热重载完成"）→ 强停抖音重新启动，等 25 秒
+- 热重载后新实例**不重走 `onModuleLoaded`**：`ModLog.bind` 与 `HostRuntime.module` 要在 `onHotReloaded` 里补绑
 
 ## 硬性约束
 
@@ -71,6 +77,7 @@ app/src/main/java/io/github/yfishyon/doumcp/
 
 - 字符串/类锚点**必须全等匹配**（`StringMatchType.Equals`），锚点抄完整
 - 定位结果两级缓存：内存 + FastKV（按宿主版本隔离）；缓存全命中不建 DexKit 索引
+- **缓存值格式 `类名#方法名#参数类型逗号串`**（必须带参数类型，否则同名重载还原会取错）；读到两段老格式时：仅当同名方法唯一才认，否则当未命中重新定位并写新格式
 - 候选类搜索用 `DexKitSupport.searchCandidatesParallel`（并发，不要写串行循环）
 - 抽象方法不能 hook；Retrofit 接口找实现类或调用方
 - 调宿主挂起方法：Proxy 宿主 classloader 的 Continuation + 宿主 EmptyCoroutineContext；挂起标记用 `is Enum<*> && name == "COROUTINE_SUSPENDED"` 判定
@@ -101,6 +108,23 @@ app/src/main/java/io/github/yfishyon/doumcp/
 - 连接缓存（密钥派生耗时，懒建）；宿主删库/查询失败时弃连接重建
 - IM 库时间戳是毫秒（13 位）；个别 ext 字段是秒（10 位），换算前先看位数
 - **不要在宿主首次 WCDB 使用前触发其类初始化**（静态初始化依赖宿主上下文，抢跑会崩宿主 IM 启动）；也**不要在 hook 回调栈内同步 unhook**（框架等待回调退出会自死锁）
+
+## 逆向调试（features/devtool，仅 debug 包）
+
+- **只在 debug 包注册**：`McpServerHost.registerTools` 与 `ModuleMain.onHotReloading` 的清理由 `BuildConfig.DEBUG` 门控；
+  release 里 R8 会把死分支与相关类整体裁掉（实测：release 的 dex 搜不到任何 devtool 字符串）
+- 三层：静态定位 → `bridge/DexSearchBridge`；运行时反射 → `bridge/RuntimeBridge`；动态 hook → `bridge/WatchBridge`；
+  定位/求值助手在 `resolver/`（`TargetResolver` 路径解析、`Expr` 参数表达式、`InvokerSupport` 调用）
+- **DexKit 查询**：结构条件优先；字符串匹配用 `StringMatchType` 枚举名，**默认 `Contains`**（速度 Equals > StartsWith > EndsWith > Contains > SimilarRegex）；
+  给定 `class` 用 `searchInClass`（`declaredClass` 要全表逐条比对，慢几十倍）；批量用 `batchFind*UsingStrings`（**组内 AND**）
+- **对象路径**：`类全名#静态字段.字段[下标]`；**参数表达式**：`{"ref"} / {"handle"} / {"new"} / {"static"} / {"class"} / {"enum"} / {"proxy"}`
+- **调用/构造走 libxposed `Invoker`**：默认 `Type.ORIGIN`（跳过全部 hook、行为可预期），`chain=full` 走完整链；
+  **不缓存调用器**（框架 `getInvoker` 每次返回新对象、`setType` 原地改字段，缓存会串类型）
+- **动态 hook**：同一目标再次 watch 用**相同 id 原子替换**（不摘再挂）；摘钩在工具线程同步执行（**绝不在 hook 回调栈内**），
+  移表与摘钩同处 `installLock`；记录在回调当场转文本（不长期强引用宿主对象），缓冲满后只计数；
+  `deoptimize` 只反内联**调用方**（A 内联了 B 时要反内联 A）
+- **热重载**：`WatchBridge.stop()` 清注册表 + `ObjectHandles.clear()`；**不在热重载里释放 DexKit 桥**（close 要等写锁，会拖住热重载）
+- 运行时工具**只对 MCP 所在进程（主进程）生效**；失败要明确报错，不静默兜底
 
 ## 热重载
 

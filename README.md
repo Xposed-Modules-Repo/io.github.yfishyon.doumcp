@@ -15,6 +15,7 @@
 - **搜索** —— 综合搜索（聚合或按类型过滤，分页）
 - **本地数据库** —— 直接 SQL 查询抖音全部 SQLite 库；**加密库自动解密**（含 IM 消息库，任意账号）
 - **进程内服务** —— MCP 服务跑在抖音进程内，回环地址 + Bearer 密钥鉴权
+- **逆向调试（仅 debug 包）** —— 搜类/搜方法/搜字段（DexKit 结构查询）、运行时反射读写与调用、动态 hook 观察与篡改、线程/Activity 堆栈、堆快照等；release 包**不含**这组工具
 
 ## 🔧 工作原理
 
@@ -56,7 +57,7 @@ Claude / MCP 客户端
 
 > 手机与客户端需在同一网络；未配置密钥时服务不鉴权（仅建议本机调试使用）。
 
-## 🧰 可用工具（28 个）
+## 🧰 可用工具（29 个）
 
 | 域 | 工具 | 功能 |
 |----|------|------|
@@ -64,7 +65,7 @@ Claude / MCP 客户端
 | 账号 | `getUserProfile` | 任意用户完整资料（uid/secUid） |
 | 视频 | `getAwemeDetail` | 作品详情（视频/图文，含统计与地址） |
 | 视频 | `getUserAwemes` | 用户作品列表（分页） |
-| 搜索 | `search` | 综合搜索（聚合或 type 过滤） |
+| 搜索 | `search` / `searchUsers` | 综合搜索（聚合或 type 过滤）/ 账号搜索 |
 | 评论 | `getComments` / `getCommentReplies` | 一级评论 / 楼中楼（含表情、图片、@提及） |
 | 评论 | `getCommentStickers` | 评论表情包（动图）推荐清单 |
 | 评论 | `getStickerSets` | 我添加的表情集 / 表情集里的表情（带文字描述） |
@@ -84,6 +85,27 @@ Claude / MCP 客户端
 | 数据库 | `executeDatabaseStatement` | 任意 SQL 写操作（后果自负） |
 | 调试 | `ping` | 连通性检查 |
 
+### 逆向调试工具（33 个，仅 debug 包）
+
+> 这组工具**只在 debug 包注册**；release 包编译时会被 R8 整体裁掉（不入包、不暴露）。用途是把抖M当成一个动态逆向工作台：搜代码结构、读写运行时对象、挂 hook 观察/篡改、看调用链。
+
+| 分组 | 工具 | 功能 |
+|------|------|------|
+| 静态定位 | `dexKitInfo` / `dexKitInitCache` | 桥状态 / 初始化全量缓存 |
+| 静态定位 | `findClasses` / `findMethods` / `findFields` | 按结构（类型/修饰符/原始 DEX 标志/注解/数量/继承/字段读写/调用关系）或字符串锚点搜类/方法/字段 |
+| 静态定位 | `batchFindUsingStrings` | 多组字符串锚点批量检索（组内 AND） |
+| 静态定位 | `dumpClass` / `dumpMethod` / `dumpField` | 类结构 / 方法细节（含 invokes、callers、smali 助记符、字段读写方）；支持按描述符定位 |
+| 静态定位 | `findCallers` / `findStringUsage` | 静态调用者 / 字符串用处 |
+| 运行时 | `runtimeInfo` / `packageInfo` / `readPreferences` | 进程与框架信息 / 包信息 / 宿主 SP |
+| 运行时 | `reflectClass` / `loadClass` / `listClassLoaders` / `listEnumConstants` / `dumpStatics` | 真实反射结构 / 类加载 / 枚举 / 静态字段（找单例） |
+| 运行时 | `inspectObject` / `readField` / `writeField` | 对象路径解析与字段读写（含 final 尝试） |
+| 运行时 | `newInstance` / `invokeMethod` / `dynamicProxy` | 构造对象（返回句柄）/ 反射调用（可走原始实现或完整 hook 链）/ 动态代理 |
+| 运行时 | `dumpStack` / `dumpActivities` / `dumpHeap` | 线程堆栈（找 caller）/ 页面栈 / 堆快照 |
+| 动态 hook | `watchMethod` / `unwatchMethod` / `listWatches` / `traceLog` | 挂 hook（记录参数/返回值/耗时/调用栈，可改参数/返回值/this、条件命中）、摘除、列表、增量读日志 |
+| 动态 hook | `deoptimize` | 反内联调用方，保证 hook 命中 |
+
+> ⚠️ `invokeMethod` / `writeField` / `watchMethod` 等会**真实改变宿主状态**，请自行承担后果；只在 debug 包可用。
+
 ### 数据库直查示例
 
 IM 消息库是 WCDB 加密的，抖M 直接解密（密钥由账号 uid 推导，任意账号的库都能开）：
@@ -100,11 +122,14 @@ queryDatabase: {"database":"encrypted_<uid>_im.db",
 ## 🏗️ 构建
 
 ```bash
-./gradlew assembleDebug          # 调试包
-./gradlew assembleRelease        # 发布包
+./gradlew assembleDebug          # 调试包（含逆向调试工具）
+./gradlew assembleRelease        # 发布包（不含逆向调试工具）
 ```
 
-- `versionName` 写在 `app/build.gradle.kts`（发布时同步打同名 tag）；`versionCode` = 提交数
+- **两个包的区别**：调试包注册 33 个逆向调试工具（搜代码结构、运行时读写、动态 hook 等）；发布包用 `BuildConfig.DEBUG` 门控 + R8 裁剪，**这组工具不会编译进发布包**（不含相关类与字符串）
+- 按 ABI 分包：`arm64-v8a` 与 `armeabi-v7a` 各出一个 APK
+- 两个包使用**同一签名**（`release.keystore`），可互相覆盖安装不丢登录态
+- `versionName` 写在 `app/build.gradle.kts`；`versionCode` = 提交数
 - 版本号参与 DexKit 定位缓存键（模块或抖音任一升级，缓存自动失效重扫）
 
 ### 项目结构
@@ -112,10 +137,12 @@ queryDatabase: {"database":"encrypted_<uid>_im.db",
 ```
 doumcp/
   ModuleMain.kt / McpServerHost.kt / ModulePrefs.kt / SettingsInjector.kt
-  core/      HostRuntime（宿主上下文/classLoader 单例）、DexKitSupport（定位+缓存）、
-             Reflect、ModLog、DouToastHelper、ResolvedCache(FastKV)
+  core/      HostRuntime（宿主上下文/classLoader/模块实例单例）、DexKitSupport（定位+缓存）、
+             Reflect、ModLog、DouToastHelper、ResolvedCache(FastKV)、ObjectDump、ValueFormat
   features/  按功能分包，每包 tool / bridge / resolver 三层
     account/ video/ comment/ search/ im/ system/ database/
+    devtool/ 逆向调试（**仅 debug 包注册**）：DexKit 结构查询、运行时反射读写/构造/调用、
+             动态 hook（观察+篡改）、堆栈/Activity/堆快照
 ```
 
 ## ⚠️ 已知限制

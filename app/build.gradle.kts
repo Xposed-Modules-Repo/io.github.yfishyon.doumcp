@@ -39,7 +39,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = gitCommitCount
-        versionName = "v1.1"
+        versionName = "v1.1.1"
     }
 
     // 按 ABI 分包：arm64-v8a / armeabi-v7a 各出一个 APK
@@ -61,6 +61,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles("proguard-rules.pro")
+            signingConfig = releaseSigning?.let { signingConfigs["release"] }
+        }
+        debug {
+            // 调试包与发布包使用同一签名（覆盖安装不丢登录态，便于真机联调）
             signingConfig = releaseSigning?.let { signingConfigs["release"] }
         }
     }
