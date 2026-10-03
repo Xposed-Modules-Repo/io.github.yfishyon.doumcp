@@ -79,6 +79,8 @@ class ModuleMain : XposedModule() {
                 return
             }
         hostClassLoader = classLoader
+        HostRuntime.classLoader = classLoader
+        HostRuntime.processName = param.processName
 
         hookSettingsPage(classLoader)
         startMcpServer(context)
