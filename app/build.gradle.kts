@@ -4,13 +4,14 @@ plugins {
     alias(libs.plugins.agp.app)
 }
 
-val gitHash =
+val gitCommitCount =
     providers
         .exec {
-            commandLine("git", "rev-parse", "--short=7", "HEAD")
+            commandLine("git", "rev-list", "--count", "HEAD")
         }.standardOutput.asText
         .get()
         .trim()
+        .toInt()
 
 // 签名信息读取自根目录 release-signing.properties（不入库），缺失时 release 不签名
 val releaseSigning =
@@ -37,8 +38,18 @@ android {
     defaultConfig {
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = gitHash
+        versionCode = gitCommitCount
+        versionName = "v1.1"
+    }
+
+    // 按 ABI 分包：arm64-v8a / armeabi-v7a 各出一个 APK
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
+        }
     }
 
     buildFeatures {
