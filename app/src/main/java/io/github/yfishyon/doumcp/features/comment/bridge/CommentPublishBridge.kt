@@ -1,5 +1,6 @@
 package io.github.yfishyon.doumcp.features.comment.bridge
 
+import io.github.yfishyon.doumcp.core.ApiError
 import io.github.yfishyon.doumcp.core.HostRuntime
 import io.github.yfishyon.doumcp.core.ModLog
 import io.github.yfishyon.doumcp.core.Reflect
@@ -136,7 +137,7 @@ object CommentPublishBridge {
 
         val response =
             runCatching { awaitObservable(observable) }
-                .getOrElse { return errorJson("发布请求失败: ${it.cause ?: it}") }
+                .getOrElse { return errorJson("发布评论失败：${ApiError.describe(it.cause ?: it)}") }
                 ?: return errorJson("发布无响应（超时）")
 
         val statusCode = (Reflect.field(response, "status_code") as? Number)?.toInt() ?: 0

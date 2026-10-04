@@ -6,6 +6,7 @@ import io.github.yfishyon.doumcp.core.ResolvedCache
 import io.github.yfishyon.doumcp.features.account.resolver.AccountResolver
 import io.github.yfishyon.doumcp.features.comment.resolver.CommentResolver
 import io.github.yfishyon.doumcp.features.im.resolver.ImResolver
+import io.github.yfishyon.doumcp.features.publish.resolver.PublishResolver
 import io.github.yfishyon.doumcp.features.search.resolver.SearchResolver
 import io.github.yfishyon.doumcp.features.video.resolver.VideoResolver
 
@@ -29,6 +30,7 @@ object FeatureWarmup {
             "search_provider" to { SearchResolver.resolveApiProvider() },
             "search_call" to { SearchResolver.resolveGenericCall() },
             "im_user_fetch" to { ImResolver.resolveUserFetch() },
+            "publish_create_caller" to { PublishResolver.resolvePublishCaller() },
         )
 
     /** 无适配记录时全量定位并写记录；定位结果走 [ResolvedCache]，按模块版本 + 宿主版本隔离。 */

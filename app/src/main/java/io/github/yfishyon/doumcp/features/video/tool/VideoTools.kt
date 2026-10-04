@@ -5,9 +5,11 @@ import io.github.yfishyon.doumcp.core.boolArg
 import io.github.yfishyon.doumcp.core.errorResult
 import io.github.yfishyon.doumcp.core.intArg
 import io.github.yfishyon.doumcp.core.stringArg
+import io.github.yfishyon.doumcp.core.stringListArgOrNull
 import io.github.yfishyon.doumcp.core.toolCall
 import io.github.yfishyon.doumcp.features.video.bridge.UserAwemeBridge
 import io.github.yfishyon.doumcp.features.video.bridge.VideoBridge
+import io.github.yfishyon.doumcp.features.video.bridge.VideoDeleteBridge
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,6 +51,27 @@ internal fun Server.registerVideoTools() {
             toolCall {
                 UserAwemeBridge.getUserAwemesJson(uidOrSecUid, cursor, count, keyword)
             }
+        }
+    }
+
+    addDouMcpTool(
+        name = "deleteAweme",
+        description =
+            "批量删除自己发布的作品（逐条删除，单条失败不影响其余）。" +
+                "awemeIds 为作品 ID 列表（JSON 数组，也接受单个 ID 字符串）。需要登录。" +
+                "返回 JSON：results 数组，每项含 id、ok，失败时带 error",
+    ) { request ->
+        val awemeIds =
+            request.arguments.stringListArgOrNull("awemeIds")
+                ?: request.arguments
+                    .stringArg("awemeIds")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { listOf(it) }
+                ?: emptyList()
+
+        withContext(Dispatchers.IO) {
+            toolCall { VideoDeleteBridge.deleteAwemesJson(awemeIds) }
         }
     }
 }

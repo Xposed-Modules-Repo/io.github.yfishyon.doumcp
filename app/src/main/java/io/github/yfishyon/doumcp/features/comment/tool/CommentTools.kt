@@ -4,8 +4,10 @@ import io.github.yfishyon.doumcp.core.addDouMcpTool
 import io.github.yfishyon.doumcp.core.errorResult
 import io.github.yfishyon.doumcp.core.intArg
 import io.github.yfishyon.doumcp.core.stringArg
+import io.github.yfishyon.doumcp.core.stringListArgOrNull
 import io.github.yfishyon.doumcp.core.toolCall
 import io.github.yfishyon.doumcp.features.comment.bridge.CommentBridge
+import io.github.yfishyon.doumcp.features.comment.bridge.CommentDeleteBridge
 import io.github.yfishyon.doumcp.features.comment.bridge.CommentStickerBridge
 import io.github.yfishyon.doumcp.features.comment.bridge.CommentStickerSetBridge
 import io.modelcontextprotocol.kotlin.sdk.server.Server
@@ -97,6 +99,30 @@ internal fun Server.registerCommentTools() {
 
         withContext(Dispatchers.IO) {
             toolCall { CommentStickerSetBridge.getSetsJson(setId) }
+        }
+    }
+
+    addDouMcpTool(
+        name = "deleteComment",
+        description =
+            "批量删除自己发布的评论（逐条删除，单条失败不影响其余）。" +
+                "awemeId 为评论所属作品 ID；cids 为评论 ID 列表（JSON 数组，也接受单个 ID 字符串）。需要登录。" +
+                "返回 JSON：results 数组，每项含 id、ok，失败时带 error",
+    ) { request ->
+        val awemeId =
+            request.arguments.stringArg("awemeId")
+                ?: return@addDouMcpTool errorResult("缺少 awemeId 参数")
+        val cids =
+            request.arguments.stringListArgOrNull("cids")
+                ?: request.arguments
+                    .stringArg("cids")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { listOf(it) }
+                ?: emptyList()
+
+        withContext(Dispatchers.IO) {
+            toolCall { CommentDeleteBridge.deleteCommentsJson(awemeId, cids) }
         }
     }
 }

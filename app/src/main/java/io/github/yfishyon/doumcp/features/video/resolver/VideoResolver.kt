@@ -13,6 +13,7 @@ import java.lang.reflect.Method
  */
 object VideoResolver {
     private const val VIDEO_DETAIL_PATH = "/aweme/v1/aweme/detail/"
+    private const val LISTENABLE_FUTURE = "com.google.common.util.concurrent.ListenableFuture"
 
     fun resolveDetailMethod(): Method? =
         DexKitSupport.resolveCached("video_detail") { dexKit ->
@@ -23,6 +24,25 @@ object VideoResolver {
                     matcher {
                         returnType = DexKitSupport.FEED_AWEME
                         paramTypes("java.lang.String", "java.lang.String")
+                    }
+                }.firstOrNull()
+                ?.getMethodInstance(HostRuntime.requireClassLoader())
+        }
+
+    /**
+     * 作品删除方法。
+     *
+     * 端点写在注解里、检索不到，按方法名与形状定位：(作品 ID, 软删标记) →
+     * ListenableFuture 的 deleteItem 在全表唯一。
+     */
+    fun resolveDeleteMethod(): Method? =
+        DexKitSupport.resolveCached("video_delete") { dexKit ->
+            dexKit
+                .findMethod {
+                    matcher {
+                        name("deleteItem", StringMatchType.Equals)
+                        returnType(LISTENABLE_FUTURE, StringMatchType.Equals)
+                        paramTypes("java.lang.String", "java.lang.Integer")
                     }
                 }.firstOrNull()
                 ?.getMethodInstance(HostRuntime.requireClassLoader())
