@@ -233,11 +233,11 @@ object TargetResolver {
         var current: Class<*>? = clazz
         while (current != null && current != Any::class.java) {
             for (method in current.declaredMethods) {
-                result.putIfAbsent(method.signatureText(), method)
+                result.putIfAbsent(method.name + method.signatureText(), method)
             }
             for (iface in current.interfaces) {
                 for (method in iface.methods) {
-                    result.putIfAbsent(method.signatureText(), method)
+                    result.putIfAbsent(method.name + method.signatureText(), method)
                 }
             }
             current = current.superclass
