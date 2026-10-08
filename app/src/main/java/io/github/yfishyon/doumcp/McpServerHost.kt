@@ -14,6 +14,7 @@ import io.github.yfishyon.doumcp.features.devtool.tool.registerDevtoolRuntimeToo
 import io.github.yfishyon.doumcp.features.devtool.tool.registerDevtoolSearchTools
 import io.github.yfishyon.doumcp.features.devtool.tool.registerDevtoolWatchTools
 import io.github.yfishyon.doumcp.features.im.tool.registerImTools
+import io.github.yfishyon.doumcp.features.notice.tool.registerNoticeTools
 import io.github.yfishyon.doumcp.features.publish.tool.registerPublishTools
 import io.github.yfishyon.doumcp.features.search.tool.registerSearchTools
 import io.github.yfishyon.doumcp.features.system.tool.registerSystemTools
@@ -214,6 +215,7 @@ object McpServerHost {
                 "comment_publish" to { registerCommentPublishTools() },
                 "publish" to { registerPublishTools() },
                 "search" to { registerSearchTools() },
+                "notice" to { registerNoticeTools() },
                 "system" to { registerSystemTools() },
                 "database" to { registerDatabaseTools() },
             )
